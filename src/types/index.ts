@@ -18,6 +18,7 @@ export interface Task {
   priority: Priority;
   dueDate: string;
   createdAt: string;
+  columnId?:string;
 }
 
 export interface Column {
