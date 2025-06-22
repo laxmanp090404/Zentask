@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Board } from '../types';
+import { Board } from '../../types';
 
 interface BoardCardProps {
   board: Board;

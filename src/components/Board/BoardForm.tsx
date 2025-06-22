@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import Button from '../UI/Button';
-import { useAppDispatch } from '../store/hooks';
-import { addBoard } from '../store/slices/boardSlice';
+import { useAppDispatch } from '../../store/hooks';
+import { addBoard } from '../../store/slices/boardSlice';
 
 interface BoardFormProps {
   onClose: () => void;
