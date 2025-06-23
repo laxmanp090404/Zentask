@@ -52,7 +52,15 @@ const taskService = {
   deleteTask: async (id: string): Promise<string> => {
     await api.delete(`/tasks/${id}`);
     return id;
-  }
+  },
+
+  moveTask: async (
+    taskId: string,
+    destColumnId: string,
+    destIndex: number
+  ): Promise<void> => {
+    await api.put(`/tasks/${taskId}/move`, { destColumnId, destIndex });
+  },
 };
 
 export default taskService;

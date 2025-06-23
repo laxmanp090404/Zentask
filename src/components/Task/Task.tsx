@@ -6,12 +6,13 @@ import Button from '../UI/Button';
 import Modal from '../UI/Modal';
 import TaskForm from './TaskForm';
 import { useAppDispatch } from '../../store/hooks';
-import { deleteTask } from '../../store/slices/taskSlice';
+import { deleteTaskAsync, moveTask } from '../../store/slices/taskSlice';
 
 // Define the drag item type
 interface DragItem {
   id: string;
   sourceColumnId: string;
+  index: number;
 }
 
 // Define collected props for useDrag
@@ -21,29 +22,44 @@ interface DragCollectedProps {
 
 interface TaskProps {
   task: TaskType;
+  index: number;
   columnId: string;
 }
 
-const Task: React.FC<TaskProps> = ({ task, columnId }) => {
+const ItemTypes = {
+  TASK: 'task',
+};
+
+const Task: React.FC<TaskProps> = ({ task, index, columnId }) => {
   const [isViewOpen, setIsViewOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const dispatch = useAppDispatch();
-  const ref = useRef<HTMLDivElement>(null); // Ref for the DOM node
+  const ref = useRef<HTMLDivElement>(null);
 
   const [{ isDragging }, drag] = useDrag<DragItem, unknown, DragCollectedProps>({
-    type: 'TASK',
-    item: { id: task.id, sourceColumnId: columnId },
+    type: ItemTypes.TASK,
+    item: { id: task.id, sourceColumnId: columnId, index },
+    end: (item, monitor) => {
+      const dropResult = monitor.getDropResult<{ destColumnId: string; destIndex: number }>();
+      if (item && dropResult) {
+        dispatch(
+          moveTask({
+            taskId: item.id,
+            destColumnId: dropResult.destColumnId,
+            destIndex: dropResult.destIndex,
+          })
+        );
+      }
+    },
     collect: (monitor) => ({
       isDragging: monitor.isDragging(),
     }),
   });
 
-  // Attach drag ref to the DOM node
   drag(ref);
 
   const handleDelete = () => {
-    // In a real app, add confirmation dialog
-    dispatch(deleteTask(task.id));
+    dispatch(deleteTaskAsync(task.id));
     setIsViewOpen(false);
   };
 
@@ -60,13 +76,14 @@ const Task: React.FC<TaskProps> = ({ task, columnId }) => {
     <>
       <div
         ref={ref}
-        className={`bg-white p-3 mb-2 rounded shadow cursor-move border-l-4 ${
+        style={{ opacity: isDragging ? 0.5 : 1 }}
+        className={`bg-white p-3 mb-2 rounded shadow-sm border-l-4 ${
           task.priority === Priority.HIGH
             ? 'border-red-500'
             : task.priority === Priority.MEDIUM
             ? 'border-yellow-500'
             : 'border-green-500'
-        } ${isDragging ? 'opacity-50' : ''}`}
+        } cursor-grab`}
         onClick={() => setIsViewOpen(true)}
       >
         <div className="flex justify-between items-start">

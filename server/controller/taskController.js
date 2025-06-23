@@ -1,6 +1,7 @@
 const Task = require('../model/taskModel');
 const Column = require('../model/columnModel');
 const Board = require('../model/boardModel'); // FIX: Add this line to import the Board model
+const mongoose = require('mongoose'); // Make sure mongoose is imported
 
 // @desc    Get all tasks for a specific column
 // @route   GET /api/columns/:columnId/tasks
@@ -78,6 +79,67 @@ const createTask = async (req, res) => {
     res.status(201).json(populatedTask);
   } catch (error) {
     res.status(500).json({ message: `Error creating task: ${error.message}` });
+  }
+};
+
+// @desc    Move a task within or between columns
+// @route   PUT /api/tasks/:id/move
+// @access  Private
+const moveTask = async (req, res) => {
+  const { destColumnId, destIndex } = req.body;
+  const { id: taskId } = req.params;
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const task = await Task.findById(taskId).session(session);
+    if (!task) {
+      throw new Error('Task not found');
+    }
+
+    const sourceColumnId = task.columnId;
+
+    // Authorization check (user must own the board)
+    const sourceColumnForAuth = await Column.findById(sourceColumnId).session(session);
+    const board = await Board.findById(sourceColumnForAuth.boardId).session(session);
+    if (board.createdBy.toString() !== req.user.id) {
+      throw new Error('User not authorized');
+    }
+
+    // 1. Remove task from the source column's task array
+    await Column.findByIdAndUpdate(
+      sourceColumnId,
+      { $pull: { tasks: taskId } },
+      { session }
+    );
+
+    // 2. Add task to the destination column's task array at the correct position
+    await Column.findByIdAndUpdate(
+      destColumnId,
+      {
+        $push: {
+          tasks: {
+            $each: [taskId],
+            $position: destIndex,
+          },
+        },
+      },
+      { session }
+    );
+
+    // 3. Update the task's own columnId field
+    task.columnId = destColumnId;
+    await task.save({ session });
+
+    await session.commitTransaction();
+    res.status(200).json({ message: 'Task moved successfully' });
+
+  } catch (error) {
+    await session.abortTransaction();
+    res.status(400).json({ message: error.message || 'Failed to move task' });
+  } finally {
+    session.endSession();
   }
 };
 
@@ -183,6 +245,7 @@ const deleteTask = async (req, res) => {
 module.exports = {
   getTasks,
   createTask,
+  moveTask, // Add this
   updateTask,
-  deleteTask
+  deleteTask,
 };

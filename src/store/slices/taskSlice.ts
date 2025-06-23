@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { Task } from '../../types';
-import taskService from '../../services/taskService';
+import taskService from '../../services/taskService'; // Ensure service is imported
 
 // Async thunks for API calls
 export const fetchTasks = createAsyncThunk(
@@ -48,33 +48,18 @@ export const deleteTaskAsync = createAsyncThunk(
   }
 );
 
-export const moveTaskAsync = createAsyncThunk(
+export const moveTask = createAsyncThunk(
   'tasks/moveTask',
   async (
-    { taskId, destinationColumnId }: { taskId: string; destinationColumnId: string },
-    { rejectWithValue, getState }
+    { taskId, destColumnId, destIndex }: { taskId: string; destColumnId: string; destIndex: number },
+    { rejectWithValue }
   ) => {
     try {
-      const state: any = getState();
-      const task = state.tasks.tasks.find((t: Task) => t.id === taskId);
-      
-      if (!task) {
-        throw new Error(`Task with ID ${taskId} not found`);
-      }
-      
-      // Update task with new column ID
-      const updatedTask = await taskService.updateTask(taskId, {
-        ...task,
-        columnId: destinationColumnId
-      });
-      
-      return {
-        task: updatedTask,
-        previousColumnId: task.columnId,
-        newColumnId: destinationColumnId
-      };
-    } catch (error) {
-      return rejectWithValue((error as Error).message);
+      await taskService.moveTask(taskId, destColumnId, destIndex);
+      // Return data for reducer to finalize state
+      return { taskId, destColumnId };
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to move task');
     }
   }
 );
@@ -111,12 +96,34 @@ export const taskSlice = createSlice({
     setTasks: (state, action: PayloadAction<Task[]>) => {
       state.tasks = action.payload;
     },
-    moveTask: (state, action: PayloadAction<{ taskId: string, sourceColumnId: string, destinationColumnId: string }>) => {
-      const task = state.tasks.find(task => task.id === action.payload.taskId);
-      if (task) {
-        task.columnId = action.payload.destinationColumnId;
+    // ADD THIS REDUCER for optimistic UI updates during drag-and-drop
+    reorderTasks: (state, action: PayloadAction<{ taskId: string; sourceColumnId: string; destColumnId: string; destIndex: number }>) => {
+      const { taskId, destColumnId, destIndex } = action.payload;
+
+      const taskIndex = state.tasks.findIndex(t => t.id === taskId);
+      if (taskIndex === -1) return;
+
+      // 1. Remove the task from its current position in the flat array
+      const [movedTask] = state.tasks.splice(taskIndex, 1);
+
+      // 2. Update its columnId
+      movedTask.columnId = destColumnId;
+
+      // 3. Find the new position in the flat array.
+      // This is a simplified logic that places it relative to other tasks in the destination column.
+      const tasksInDestColumn = state.tasks.filter(t => t.columnId === destColumnId);
+      if (destIndex >= tasksInDestColumn.length) {
+        // If dropping at the end, find the index of the last task in the column
+        const lastTask = tasksInDestColumn[tasksInDestColumn.length - 1];
+        const newIndex = lastTask ? state.tasks.findIndex(t => t.id === lastTask.id) + 1 : 0;
+        state.tasks.splice(newIndex, 0, movedTask);
+      } else {
+        // If dropping at a specific index, find the task at that index
+        const taskAtDestIndex = tasksInDestColumn[destIndex];
+        const newIndex = state.tasks.findIndex(t => t.id === taskAtDestIndex.id);
+        state.tasks.splice(newIndex, 0, movedTask);
       }
-    }
+    },
   },
   extraReducers: (builder) => {
     // Fetch tasks
@@ -186,23 +193,26 @@ export const taskSlice = createSlice({
     });
     
     // Move task
-    builder.addCase(moveTaskAsync.pending, (state) => {
+    // FIX: This now correctly references the async thunk 'moveTask'
+    builder.addCase(moveTask.pending, (state) => {
       state.loading = true;
       state.error = null;
     });
-    builder.addCase(moveTaskAsync.fulfilled, (state, action) => {
+    builder.addCase(moveTask.fulfilled, (state, action) => {
       state.loading = false;
-      const task = state.tasks.find(t => t.id === action.payload.task.id);
+      const { taskId, destColumnId } = action.payload;
+      const task = state.tasks.find((t) => t.id === taskId);
       if (task) {
-        task.columnId = action.payload.newColumnId;
+        task.columnId = destColumnId;
       }
     });
-    builder.addCase(moveTaskAsync.rejected, (state, action) => {
+    builder.addCase(moveTask.rejected, (state, action) => {
       state.loading = false;
       state.error = action.payload as string;
     });
   }
 });
 
-export const { addTask, updateTask, deleteTask, setTasks, moveTask } = taskSlice.actions;
+// Export the new action
+export const { addTask, updateTask, deleteTask, setTasks, reorderTasks } = taskSlice.actions;
 export default taskSlice.reducer;
