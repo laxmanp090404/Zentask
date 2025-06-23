@@ -1,88 +1,83 @@
 const Task = require('../model/taskModel');
 const Column = require('../model/columnModel');
-const Board = require('../model/boardModel');
+const Board = require('../model/boardModel'); // FIX: Add this line to import the Board model
 
-// @desc    Create a new task
+// @desc    Get all tasks for a specific column
+// @route   GET /api/columns/:columnId/tasks
+// @access  Private
+const getTasks = async (req, res) => {
+  try {
+    const { columnId } = req.params;
+
+    // 1. Find the column to get its parent board ID
+    const column = await Column.findById(columnId);
+    if (!column) {
+      return res.status(404).json({ message: 'Column not found' });
+    }
+
+    // 2. Find the parent board for authorization check
+    const board = await Board.findById(column.boardId);
+    if (!board) {
+      // This case should be rare but is good practice to handle
+      return res.status(404).json({ message: 'Parent board not found' });
+    }
+
+    // 3. Verify the user owns the board
+    if (board.createdBy.toString() !== req.user.id) {
+      return res.status(401).json({ message: 'User not authorized for this board' });
+    }
+
+    // 4. If authorized, fetch the tasks
+    const tasks = await Task.find({ columnId })
+      .populate('createdBy', 'name')
+      .populate('assignedTo', 'name')
+      .sort({ createdAt: 'asc' }); // or any other order you prefer
+
+    res.status(200).json(tasks);
+  } catch (error) {
+    res.status(500).json({ message: `Error fetching tasks: ${error.message}` });
+  }
+};
+
+// @desc    Create a new task for a column
 // @route   POST /api/columns/:columnId/tasks
 // @access  Private
 const createTask = async (req, res) => {
   try {
     const { title, description, priority, dueDate, assignedTo } = req.body;
     const { columnId } = req.params;
-    
-    // Check if column exists
+
     const column = await Column.findById(columnId);
-    
     if (!column) {
       return res.status(404).json({ message: 'Column not found' });
     }
-    
-    // Check if user owns the board that contains this column
+
     const board = await Board.findById(column.boardId);
-    
-    if (!board) {
-      return res.status(404).json({ message: 'Board not found' });
-    }
-    
     if (board.createdBy.toString() !== req.user.id) {
-      return res.status(401).json({ message: 'Not authorized' });
+        return res.status(401).json({ message: 'User not authorized for this board' });
     }
-    
-    // Find the highest order to place the new task at the bottom
-    const tasks = await Task.find({ columnId });
-    const order = tasks.length > 0 
-      ? Math.max(...tasks.map(task => task.order)) + 1 
-      : 0;
-    
+
     const task = await Task.create({
       title,
       description,
+      priority,
+      dueDate,
+      assignedTo: assignedTo?.id || null,
       columnId,
-      priority: priority || 'medium',
-      dueDate: dueDate || null,
       createdBy: req.user.id,
-      assignedTo: assignedTo || null,
-      order
     });
-    
-    res.status(201).json(task);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
 
-// @desc    Get all tasks for a column
-// @route   GET /api/columns/:columnId/tasks
-// @access  Private
-const getTasks = async (req, res) => {
-  try {
-    const { columnId } = req.params;
-    
-    // Check if column exists
-    const column = await Column.findById(columnId);
-    
-    if (!column) {
-      return res.status(404).json({ message: 'Column not found' });
-    }
-    
-    // Check if user owns the board that contains this column
-    const board = await Board.findById(column.boardId);
-    
-    if (!board) {
-      return res.status(404).json({ message: 'Board not found' });
-    }
-    
-    if (board.createdBy.toString() !== req.user.id) {
-      return res.status(401).json({ message: 'Not authorized' });
-    }
-    
-    const tasks = await Task.find({ columnId })
-      .sort({ order: 1 })
-      .populate('assignedTo', 'name email');
-    
-    res.status(200).json(tasks);
+    column.tasks.push(task._id);
+    await column.save();
+
+    const populatedTask = await task.populate([
+        { path: 'createdBy', select: 'name' },
+        { path: 'assignedTo', select: 'name' }
+    ]);
+
+    res.status(201).json(populatedTask);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: `Error creating task: ${error.message}` });
   }
 };
 
@@ -184,9 +179,10 @@ const deleteTask = async (req, res) => {
   }
 };
 
+// Make sure to export all your functions
 module.exports = {
-  createTask,
   getTasks,
+  createTask,
   updateTask,
   deleteTask
 };

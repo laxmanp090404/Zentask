@@ -1,25 +1,13 @@
 const mongoose = require('mongoose');
 
-const columnSchema = mongoose.Schema(
+const columnSchema = new mongoose.Schema(
   {
-    title: {
-      type: String,
-      required: true
-    },
-    boardId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Board',
-      required: true
-    },
-    order: {
-      type: Number,
-      default: 0
-    }
+    title: { type: String, required: true },
+    boardId: { type: mongoose.Schema.Types.ObjectId, ref: 'Board', required: true },
+    tasks: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Task' }],
+    order: { type: Number }
   },
-  {
-    timestamps: true
-  }
+  { timestamps: true }
 );
 
-const Column = mongoose.model('Column', columnSchema);
-module.exports = Column;
+module.exports = mongoose.model('Column', columnSchema);

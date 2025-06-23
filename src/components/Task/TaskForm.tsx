@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { v4 as uuidv4 } from 'uuid';
 import Button from '../UI/Button';
 import Dropdown from '../UI/Dropdown';
 import { useAppDispatch } from '../../store/hooks';
-import { addTask, updateTask } from '../../store/slices/taskSlice';
+import { createTask, updateTaskAsync } from '../../store/slices/taskSlice';
 import { Task, Priority, User } from '../../types';
 import userService from '../../services/userService';
 
@@ -28,14 +27,12 @@ const TaskForm: React.FC<TaskFormProps> = ({
       : ''
   );
   
-  // Get users dynamically from backend
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const [assignedTo, setAssignedTo] = useState(existingTask?.assignedTo?.id || '');
   
   const dispatch = useAppDispatch();
   
-  // Fetch users when component mounts
   useEffect(() => {
     const fetchUsers = async () => {
       setLoading(true);
@@ -56,45 +53,23 @@ const TaskForm: React.FC<TaskFormProps> = ({
     e.preventDefault();
     
     if (!title.trim()) return;
-    
-    // Get current user from localStorage for the task creator
-    const currentUserStr = localStorage.getItem('user');
-    let currentUser = { id: '1', name: 'Current User' };
-    
-    if (currentUserStr) {
-      const parsed = JSON.parse(currentUserStr);
-      currentUser = {
-        id: parsed._id,
-        name: parsed.name
-      };
-    }
+
+    // This payload contains only the data the user can edit or create.
+    // The backend will handle 'createdBy' and 'createdAt'.
+    const taskPayload = {
+      title: title.trim(),
+      description: description.trim(),
+      priority,
+      dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
+      assignedTo: assignedTo ? users.find(u => u.id === assignedTo) : undefined,
+    };
     
     if (isEditing && existingTask) {
-      const updatedTask: Task = {
-        ...existingTask,
-        title: title.trim(),
-        description: description.trim(),
-        priority,
-        columnId, // Associate task with column
-        dueDate: dueDate ? new Date(dueDate).toISOString() : new Date().toISOString(),
-        assignedTo: assignedTo ? users.find(user => user.id === assignedTo) : undefined
-      };
-      
-      dispatch(updateTask(updatedTask));
+      // Dispatch the async thunk to update the task via the API
+      dispatch(updateTaskAsync({ id: existingTask.id, taskData: taskPayload }));
     } else {
-      const newTask: Task = {
-        id: uuidv4(),
-        title: title.trim(),
-        description: description.trim(),
-        createdBy: currentUser,
-        priority,
-        columnId, // Associate task with column
-        dueDate: dueDate ? new Date(dueDate).toISOString() : new Date().toISOString(),
-        assignedTo: assignedTo ? users.find(user => user.id === assignedTo) : undefined,
-        createdAt: new Date().toISOString()
-      };
-      
-      dispatch(addTask(newTask));
+      // Dispatch the async thunk to create the task via the API
+      dispatch(createTask({ columnId, taskData: taskPayload }));
     }
     
     onClose();

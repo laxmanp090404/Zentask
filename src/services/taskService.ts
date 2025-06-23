@@ -32,7 +32,7 @@ const taskService = {
       description: taskData.description,
       priority: taskData.priority,
       dueDate: taskData.dueDate,
-      assignedTo: taskData.assignedTo?.id
+      assignedTo: taskData.assignedTo?.id // Send only the ID
     });
     return transformTask(response.data);
   },

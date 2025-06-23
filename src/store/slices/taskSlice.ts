@@ -19,8 +19,8 @@ export const createTask = createAsyncThunk(
   async ({ columnId, taskData }: { columnId: string; taskData: Partial<Task> }, { rejectWithValue }) => {
     try {
       return await taskService.createTask(columnId, taskData);
-    } catch (error) {
-      return rejectWithValue((error as Error).message);
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to create task');
     }
   }
 );
@@ -141,14 +141,13 @@ export const taskSlice = createSlice({
       state.error = action.payload as string;
     });
     
-    // Create task
+    // Handle Create Task
     builder.addCase(createTask.pending, (state) => {
       state.loading = true;
-      state.error = null;
     });
-    builder.addCase(createTask.fulfilled, (state, action) => {
+    builder.addCase(createTask.fulfilled, (state, action: PayloadAction<Task>) => {
       state.loading = false;
-      state.tasks.push(action.payload);
+      state.tasks.push(action.payload); // Add the new task from the API to the state
     });
     builder.addCase(createTask.rejected, (state, action) => {
       state.loading = false;
