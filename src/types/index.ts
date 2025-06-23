@@ -18,7 +18,7 @@ export interface Task {
   priority: Priority;
   dueDate: string;
   createdAt: string;
-  columnId?:string;
+  columnId?: string;
 }
 
 export interface Column {
@@ -26,6 +26,7 @@ export interface Column {
   title: string;
   tasks: Task[];
   boardId: string;
+  order?: number; // Added order property as optional
 }
 
 export interface Board {
