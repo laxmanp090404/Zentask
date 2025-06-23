@@ -25,9 +25,10 @@ const createBoard = async (req, res) => {
 const getBoards = async (req, res) => {
   try {
     const boards = await Board.find({ createdBy: req.user.id })
+      .populate('createdBy', 'name email') // Populate the user information
       .sort({ createdAt: -1 });
     
-    res.status(200).json(boards);
+    res.status(200).json(boards); // Just send the boards - they'll have the populated user data
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -38,14 +39,15 @@ const getBoards = async (req, res) => {
 // @access  Private
 const getBoard = async (req, res) => {
   try {
-    const board = await Board.findById(req.params.id);
+    const board = await Board.findById(req.params.id)
+      .populate('createdBy', 'name email'); // Populate the user information
 
     if (!board) {
       return res.status(404).json({ message: 'Board not found' });
     }
 
-    // Check if user owns the board
-    if (board.createdBy.toString() !== req.user.id) {
+    // Check if user owns the board - note the _id when populated
+    if (board.createdBy._id.toString() !== req.user.id) {
       return res.status(401).json({ message: 'Not authorized' });
     }
 

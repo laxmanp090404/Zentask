@@ -78,6 +78,22 @@ const getMe = async (req, res) => {
   }
 };
 
+// @desc    Get all users
+// @route   GET /api/users
+// @access  Private
+const getUsers = async (req, res) => {
+  try {
+    // Get all users except the current user
+    const users = await User.find({ _id: { $ne: req.user.id } })
+      .select('-password')
+      .sort({ name: 1 });
+    
+    res.status(200).json(users);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 // Generate JWT
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -88,5 +104,6 @@ const generateToken = (id) => {
 module.exports = {
   registerUser,
   loginUser,
-  getMe
+  getMe,
+  getUsers
 };

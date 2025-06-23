@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import Button from '../UI/Button';
 import Dropdown from '../UI/Dropdown';
 import { useAppDispatch } from '../../store/hooks';
 import { addTask, updateTask } from '../../store/slices/taskSlice';
-import { Task, Priority } from '../../types';
+import { Task, Priority, User } from '../../types';
+import userService from '../../services/userService';
 
 interface TaskFormProps {
   columnId: string;
@@ -27,24 +28,46 @@ const TaskForm: React.FC<TaskFormProps> = ({
       : ''
   );
   
-  // In a real app, you'd have a list of users to assign to
-  // For now we'll use a mock user
-  const mockUsers = [
-    { id: '1', name: 'Test User 1' },
-    { id: '2', name: 'Test User 2' }
-  ];
-  
+  // Get users dynamically from backend
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(false);
   const [assignedTo, setAssignedTo] = useState(existingTask?.assignedTo?.id || '');
   
   const dispatch = useAppDispatch();
+  
+  // Fetch users when component mounts
+  useEffect(() => {
+    const fetchUsers = async () => {
+      setLoading(true);
+      try {
+        const usersData = await userService.getUsers();
+        setUsers(usersData);
+      } catch (error) {
+        console.error('Failed to fetch users:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchUsers();
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!title.trim()) return;
     
-    // In a real app, user would come from auth
-    const mockUser = { id: '1', name: 'Test User' };
+    // Get current user from localStorage for the task creator
+    const currentUserStr = localStorage.getItem('user');
+    let currentUser = { id: '1', name: 'Current User' };
+    
+    if (currentUserStr) {
+      const parsed = JSON.parse(currentUserStr);
+      currentUser = {
+        id: parsed._id,
+        name: parsed.name
+      };
+    }
     
     if (isEditing && existingTask) {
       const updatedTask: Task = {
@@ -54,7 +77,7 @@ const TaskForm: React.FC<TaskFormProps> = ({
         priority,
         columnId, // Associate task with column
         dueDate: dueDate ? new Date(dueDate).toISOString() : new Date().toISOString(),
-        assignedTo: assignedTo ? mockUsers.find(user => user.id === assignedTo) : undefined
+        assignedTo: assignedTo ? users.find(user => user.id === assignedTo) : undefined
       };
       
       dispatch(updateTask(updatedTask));
@@ -63,11 +86,11 @@ const TaskForm: React.FC<TaskFormProps> = ({
         id: uuidv4(),
         title: title.trim(),
         description: description.trim(),
-        createdBy: mockUser,
+        createdBy: currentUser,
         priority,
         columnId, // Associate task with column
         dueDate: dueDate ? new Date(dueDate).toISOString() : new Date().toISOString(),
-        assignedTo: assignedTo ? mockUsers.find(user => user.id === assignedTo) : undefined,
+        assignedTo: assignedTo ? users.find(user => user.id === assignedTo) : undefined,
         createdAt: new Date().toISOString()
       };
       
@@ -154,14 +177,16 @@ const TaskForm: React.FC<TaskFormProps> = ({
           value={assignedTo}
           onChange={(e) => setAssignedTo(e.target.value)}
           className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          disabled={loading}
         >
           <option value="">Unassigned</option>
-          {mockUsers.map(user => (
+          {users.map(user => (
             <option key={user.id} value={user.id}>
               {user.name}
             </option>
           ))}
         </select>
+        {loading && <p className="text-xs text-gray-500 mt-1">Loading users...</p>}
       </div>
       
       <div className="flex justify-end space-x-2 pt-4">
