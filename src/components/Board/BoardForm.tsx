@@ -1,36 +1,28 @@
 import React, { useState } from 'react';
-import { v4 as uuidv4 } from 'uuid';
 import Button from '../UI/Button';
-import { useAppDispatch } from '../../store/hooks';
-import { addBoard } from '../../store/slices/boardSlice';
 
 interface BoardFormProps {
+  onSubmit: (data: { title: string; description: string }) => void;
   onClose: () => void;
+  initialData?: {
+    title: string;
+    description: string;
+  };
 }
 
-const BoardForm: React.FC<BoardFormProps> = ({ onClose }) => {
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const dispatch = useAppDispatch();
+const BoardForm: React.FC<BoardFormProps> = ({ onSubmit, onClose, initialData }) => {
+  const [title, setTitle] = useState(initialData?.title || '');
+  const [description, setDescription] = useState(initialData?.description || '');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!title.trim()) return;
     
-    // In a real app, user would come from auth
-    const mockUser = { id: '1', name: 'Test User' };
-    
-    const newBoard = {
-      id: uuidv4(),
+    onSubmit({
       title: title.trim(),
-      description: description.trim(),
-      createdAt: new Date().toISOString(),
-      createdBy: mockUser
-    };
-    
-    dispatch(addBoard(newBoard));
-    onClose();
+      description: description.trim()
+    });
   };
 
   return (
@@ -78,7 +70,7 @@ const BoardForm: React.FC<BoardFormProps> = ({ onClose }) => {
             Cancel
           </Button>
           <Button type="submit" variant="primary">
-            Create Board
+            {initialData ? 'Update Board' : 'Create Board'}
           </Button>
         </div>
       </div>
